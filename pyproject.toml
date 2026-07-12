@@ -5,13 +5,54 @@ build-backend = "hatchling.build"
 [project]
 name = "prediction-market-sdk"
 version = "0.1.0"
-description = "High-speed Exchange SDK"
+description = "High-speed Exchange SDK for Kalshi & Polymarket"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
-dependencies = ["httpx", "websockets", "msgspec", "cryptography"]
+authors = [{name = "Nicholas Carter"}]
+keywords = ["kalshi", "polymarket", "prediction-markets", "websocket", "msgspec"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Office/Business :: Financial",
+]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-httpx"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.8", "mypy>=1.13", "pytest-httpx>=0.24"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/prediction_market_sdk"]
+[project.urls]
+Homepage = "https://github.com/mrnicholasbcarter-code/prediction-market-sdk"
+Repository = "https://github.com/mrnicholasbcarter-code/prediction-market-sdk"
+Issues = "https://github.com/mrnicholasbcarter-code/prediction-market-sdk/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
+ignore = ["E501", "B008"]
+per-file-ignores = { "tests/*" = "S101" }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+indent-width = 4
+line-ending = "lf"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
