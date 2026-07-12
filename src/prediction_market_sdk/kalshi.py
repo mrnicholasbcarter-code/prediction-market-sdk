@@ -290,15 +290,15 @@ class KalshiClient:
         """
         max_retries = 3
         for attempt in range(max_retries):
-            base_delay = 0.1 * (2 ** attempt)
+            base_delay = 0.1 * (2**attempt)
             # Add jitter: 0-100ms to each retry
             delay = base_delay + (random.random() * 0.1)
-            
+
             headers = self._generate_rsa_headers(method.upper(), path)
             req_kwargs = kwargs.copy()
             req_headers = req_kwargs.pop("headers", {})
             headers.update(req_headers)
-            
+
             try:
                 res = await self.session.request(method, path, headers=headers, **req_kwargs)
                 if res.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:

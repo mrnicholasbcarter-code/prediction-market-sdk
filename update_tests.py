@@ -1,6 +1,4 @@
-import re
-
-with open("tests/test_http_errors.py", "r") as f:
+with open("tests/test_http_errors.py") as f:
     code = f.read()
 
 # Add httpx to imports
@@ -25,7 +23,7 @@ replacements = [
                 url="https://demo-api.kalshi.co/trade-api/v2/portfolio/balance",
                 status_code=status_code,
                 json={"error": f"status {status_code}"},
-            )"""
+            )""",
     ),
     (
         """    async def test_submit_order_maps_http_errors(self, httpx_mock, kalshi_client, status_code, expected_error):
@@ -43,7 +41,7 @@ replacements = [
                 url="https://demo-api.kalshi.co/trade-api/v2/portfolio/orders",
                 status_code=status_code,
                 json={"error": f"status {status_code}"},
-            )"""
+            )""",
     ),
     (
         """    async def test_get_markets_maps_http_errors(self, httpx_mock, polymarket_client, status_code, expected_error):
@@ -61,8 +59,8 @@ replacements = [
                 url="https://clob.sandbox.polymarket.com/markets",
                 status_code=status_code,
                 json={"error": f"status {status_code}"},
-            )"""
-    )
+            )""",
+    ),
 ]
 
 for orig, new in replacements:
@@ -108,4 +106,3 @@ if "test_polymarket_timeout_retry" not in code:
 
 with open("tests/test_http_errors.py", "w") as f:
     f.write(code)
-

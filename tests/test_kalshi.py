@@ -1,15 +1,22 @@
-import pytest
 import msgspec
+import pytest
+
 from prediction_market_sdk.kalshi import (
-    KalshiClient, OrderBookUpdate, OrderResponse,
-    AuthConfigurationError, PredictionMarketError,
-    RateLimitExceeded, InsufficientFunds
+    AuthConfigurationError,
+    InsufficientFunds,
+    KalshiClient,
+    OrderBookUpdate,
+    OrderResponse,
+    PredictionMarketError,
+    RateLimitExceeded,
 )
 
 
 class TestOrderBookUpdate:
     def test_struct_creation(self):
-        update = OrderBookUpdate(market_id="BTC-100K", price=45, delta=100, side="yes", ts=1234567890)
+        update = OrderBookUpdate(
+            market_id="BTC-100K", price=45, delta=100, side="yes", ts=1234567890
+        )
         assert update.market_id == "BTC-100K"
         assert update.price == 45
         assert update.side == "yes"
@@ -29,12 +36,22 @@ class TestOrderBookUpdate:
 
     def test_invalid_side_type(self):
         with pytest.raises(msgspec.ValidationError):
-            msgspec.json.decode(b'{"market_id": "X", "price": 1, "delta": 2, "side": "maybe", "ts": 3}', type=OrderBookUpdate)
+            msgspec.json.decode(
+                b'{"market_id": "X", "price": 1, "delta": 2, "side": "maybe", "ts": 3}',
+                type=OrderBookUpdate,
+            )
 
 
 class TestOrderResponse:
     def test_struct_creation(self):
-        resp = OrderResponse(order_id="123", ticker="BTC", client_order_id="abc", action="buy", status="executed", price=45)
+        resp = OrderResponse(
+            order_id="123",
+            ticker="BTC",
+            client_order_id="abc",
+            action="buy",
+            status="executed",
+            price=45,
+        )
         assert resp.order_id == "123"
         assert resp.price == 45
 

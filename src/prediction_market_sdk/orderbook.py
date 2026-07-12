@@ -32,16 +32,18 @@ Example
 
 from __future__ import annotations
 
-from typing import Iterator, Literal
+from collections.abc import Iterator
+from typing import Literal
 
 import msgspec
 
-__all__ = ["OrderBookUpdate", "OrderBookError", "OrderBook"]
+__all__ = ["OrderBook", "OrderBookError", "OrderBookUpdate"]
 
 
 # ---------------------------------------------------------------------------
 # msgspec Structs
 # ---------------------------------------------------------------------------
+
 
 class OrderBookUpdate(msgspec.Struct, gc=False):
     """
@@ -76,6 +78,7 @@ class OrderBookError(Exception):
 # OrderBook
 # ---------------------------------------------------------------------------
 
+
 class OrderBook:
     """
     In-memory L2 order book ladder for a single market.
@@ -93,7 +96,7 @@ class OrderBook:
         asks: Raw ``{price: size}`` table for the ask side.
     """
 
-    __slots__ = ("market_id", "seq", "bids", "asks")
+    __slots__ = ("asks", "bids", "market_id", "seq")
 
     def __init__(self, market_id: str | None = None, seq: int = 0) -> None:
         """Initialize an empty book for ``market_id`` with sequence watermark ``seq``."""

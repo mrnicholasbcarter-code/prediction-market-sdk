@@ -38,10 +38,10 @@ Architecture:
 import asyncio
 import json
 import logging
+from collections.abc import Callable, Coroutine
+from typing import Any, Literal
+
 import websockets
-import msgspec
-from typing import Callable, Coroutine, Dict, Any, Literal
-from .kalshi import OrderBookUpdate
 
 logger = logging.getLogger("pm_sdk.ws")
 
@@ -60,11 +60,12 @@ class MarketWebsocket:
     Example:
         >>> async def on_update(update: OrderBookUpdate):
         ...     print(f"{update.market_id}: {update.side} {update.price} delta={update.delta}")
-        >>> 
+        >>>
         >>> ws = MarketWebsocket("wss://api.kalshi.com/ws", on_update)
         >>> await ws.subscribe(["orderbook"], ["KXBTC-100K"])
         >>> ws.start_background()
     """
+
     def __init__(self, wss_url: str, message_handler: Callable[[Any], Coroutine]):
         """
         Initialize WebSocket manager.
@@ -92,7 +93,9 @@ class MarketWebsocket:
         while True:
             try:
                 logger.info(f"Connecting to {self.wss_url}...")
-                async with websockets.connect(self.wss_url, ping_interval=20, ping_timeout=20) as ws:
+                async with websockets.connect(
+                    self.wss_url, ping_interval=20, ping_timeout=20
+                ) as ws:
                     self._ws = ws
                     self._reconnect_delay = 0.1  # Reset backoff on success
                     await self._reactor_loop()
@@ -100,7 +103,7 @@ class MarketWebsocket:
                 logger.warning("WebSocket closed unexpectedly. Reconnecting...")
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
-            
+
             await asyncio.sleep(self._reconnect_delay)
             self._reconnect_delay = min(self._reconnect_delay * 2, 5.0)
 
@@ -134,8 +137,10 @@ class MarketWebsocket:
             RuntimeError: If the WebSocket is not yet connected.
         """
         if not self._ws:
-            raise RuntimeError("WebSocket not connected. Call connect() or start_background() first.")
-        
+            raise RuntimeError(
+                "WebSocket not connected. Call connect() or start_background() first."
+            )
+
         msg = {
             "type": "subscribe",
             "channels": channels,
@@ -156,7 +161,7 @@ class MarketWebsocket:
         """
         if not self._ws:
             return
-        
+
         async for message in self._ws:
             # Fast route message. Exact schema depends on exchange.
             try:

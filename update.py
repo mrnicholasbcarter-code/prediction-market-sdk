@@ -1,9 +1,7 @@
-import re
-
 def update_kalshi():
-    with open("src/prediction_market_sdk/kalshi.py", "r") as f:
+    with open("src/prediction_market_sdk/kalshi.py") as f:
         content = f.read()
-    
+
     # Needs to handle httpx.TimeoutException and retry.
     import_httpx = "import httpx"
     new_imports = "import httpx\nimport asyncio"
