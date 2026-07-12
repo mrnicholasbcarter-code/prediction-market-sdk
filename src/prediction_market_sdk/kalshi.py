@@ -1,6 +1,7 @@
 import json
 import base64
 import httpx
+import asyncio
 from datetime import datetime, timezone
 import msgspec
 from typing import Optional, Literal
@@ -109,11 +110,31 @@ class KalshiClient:
             raise ExchangeServerError(detail)
         raise PredictionMarketError(detail)
 
+    async def _request_with_retry(self, method: str, path: str, action: str, **kwargs) -> httpx.Response:
+        max_retries = 3
+        for attempt in range(max_retries):
+            headers = self._generate_rsa_headers(method.upper(), path)
+            req_kwargs = kwargs.copy()
+            req_headers = req_kwargs.pop("headers", {})
+            headers.update(req_headers)
+            
+            try:
+                res = await self.session.request(method, path, headers=headers, **req_kwargs)
+                if res.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    continue
+                self._raise_for_status(res, action)
+                return res
+            except httpx.TimeoutException as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    continue
+                raise ExchangeServerError(f"Kalshi {action} failed with timeout: {str(e)}") from e
+        raise ExchangeServerError(f"Kalshi {action} failed after max retries")
+
     async def get_balance(self) -> float:
         """Fetch real-time portfolio balance."""
-        headers = self._generate_rsa_headers("GET", "/portfolio/balance")
-        res = await self.session.get("/portfolio/balance", headers=headers)
-        self._raise_for_status(res, "balance request")
+        res = await self._request_with_retry("GET", "/portfolio/balance", action="balance request")
             
         data = res.json()
         return data.get("balance", 0) / 100.0  # Convert cents to dollars
@@ -134,9 +155,7 @@ class KalshiClient:
         payload = {k: v for k, v in payload.items() if v is not None}
         
         path = "/portfolio/orders"
-        headers = self._generate_rsa_headers("POST", path)
-        res = await self.session.post(path, headers=headers, json=payload)
-        self._raise_for_status(res, "order submission")
+        res = await self._request_with_retry("POST", path, action="order submission", json=payload)
             
         # Zero-allocation deserialization
         try:

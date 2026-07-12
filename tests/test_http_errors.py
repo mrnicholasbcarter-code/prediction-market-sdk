@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 import pytest_asyncio
+import httpx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -71,12 +72,14 @@ class TestKalshiHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), KALSHI_ERROR_CASES)
     async def test_get_balance_maps_http_errors(self, httpx_mock, kalshi_client, status_code, expected_error):
-        httpx_mock.add_response(
-            method="GET",
-            url="https://demo-api.kalshi.co/trade-api/v2/portfolio/balance",
-            status_code=status_code,
-            json={"error": f"status {status_code}"},
-        )
+        num_requests = 3 if status_code in (429, 500) else 1
+        for _ in range(num_requests):
+            httpx_mock.add_response(
+                method="GET",
+                url="https://demo-api.kalshi.co/trade-api/v2/portfolio/balance",
+                status_code=status_code,
+                json={"error": f"status {status_code}"},
+            )
 
         with pytest.raises(expected_error, match=str(status_code)) as exc_info:
             await kalshi_client.get_balance()
@@ -86,12 +89,14 @@ class TestKalshiHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), KALSHI_ERROR_CASES)
     async def test_submit_order_maps_http_errors(self, httpx_mock, kalshi_client, status_code, expected_error):
-        httpx_mock.add_response(
-            method="POST",
-            url="https://demo-api.kalshi.co/trade-api/v2/portfolio/orders",
-            status_code=status_code,
-            json={"error": f"status {status_code}"},
-        )
+        num_requests = 3 if status_code in (429, 500) else 1
+        for _ in range(num_requests):
+            httpx_mock.add_response(
+                method="POST",
+                url="https://demo-api.kalshi.co/trade-api/v2/portfolio/orders",
+                status_code=status_code,
+                json={"error": f"status {status_code}"},
+            )
 
         with pytest.raises(expected_error, match=str(status_code)) as exc_info:
             await kalshi_client.submit_order(
@@ -105,18 +110,45 @@ class TestKalshiHttpErrors:
         assert isinstance(exc_info.value, KalshiPredictionMarketError)
 
 
+
+
+    @pytest.mark.asyncio
+    async def test_kalshi_timeout_retry(self, httpx_mock, kalshi_client):
+        def raise_timeout(*args, **kwargs):
+            raise httpx.TimeoutException("Read timeout")
+            
+        for _ in range(3):
+            httpx_mock.add_callback(raise_timeout, url="https://demo-api.kalshi.co/trade-api/v2/portfolio/balance")
+            
+        with pytest.raises(KalshiExchangeServerError, match="timeout"):
+            await kalshi_client.get_balance()
+
 class TestPolymarketHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), POLYMARKET_ERROR_CASES)
     async def test_get_markets_maps_http_errors(self, httpx_mock, polymarket_client, status_code, expected_error):
-        httpx_mock.add_response(
-            method="GET",
-            url="https://clob.sandbox.polymarket.com/markets",
-            status_code=status_code,
-            json={"error": f"status {status_code}"},
-        )
+        num_requests = 3 if status_code in (429, 500) else 1
+        for _ in range(num_requests):
+            httpx_mock.add_response(
+                method="GET",
+                url="https://clob.sandbox.polymarket.com/markets",
+                status_code=status_code,
+                json={"error": f"status {status_code}"},
+            )
 
         with pytest.raises(expected_error, match=str(status_code)) as exc_info:
             await polymarket_client.get_markets()
 
         assert isinstance(exc_info.value, PolymarketPredictionMarketError)
+
+
+    @pytest.mark.asyncio
+    async def test_polymarket_timeout_retry(self, httpx_mock, polymarket_client):
+        def raise_timeout(*args, **kwargs):
+            raise httpx.TimeoutException("Read timeout")
+            
+        for _ in range(3):
+            httpx_mock.add_callback(raise_timeout, url="https://clob.sandbox.polymarket.com/markets")
+            
+        with pytest.raises(PolymarketExchangeServerError, match="timeout"):
+            await polymarket_client.get_markets()

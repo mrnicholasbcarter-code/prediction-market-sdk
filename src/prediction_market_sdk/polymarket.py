@@ -1,4 +1,5 @@
 import time
+import asyncio
 import httpx
 import msgspec
 from typing import Literal
@@ -80,8 +81,29 @@ class PolymarketClient:
             raise ExchangeServerError(detail)
         raise PredictionMarketError(detail)
 
+    async def _request_with_retry(self, method: str, path: str, action: str, **kwargs) -> httpx.Response:
+        max_retries = 3
+        for attempt in range(max_retries):
+            headers = self._generate_l2_headers(method.upper(), path)
+            req_kwargs = kwargs.copy()
+            req_headers = req_kwargs.pop("headers", {})
+            headers.update(req_headers)
+            
+            try:
+                res = await self.session.request(method, path, headers=headers, **req_kwargs)
+                if res.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    continue
+                self._raise_for_status(res, action)
+                return res
+            except httpx.TimeoutException as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    continue
+                raise ExchangeServerError(f"Polymarket {action} failed with timeout: {str(e)}") from e
+        raise ExchangeServerError(f"Polymarket {action} failed after max retries")
+
     async def get_markets(self) -> dict:
         """Fetch active markets."""
-        res = await self.session.get("/markets")
-        self._raise_for_status(res, "markets request")
+        res = await self._request_with_retry("GET", "/markets", action="markets request")
         return res.json()
