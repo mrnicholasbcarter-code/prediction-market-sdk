@@ -33,8 +33,10 @@ class OrderResponse(msgspec.Struct, gc=False):
 
 class PredictionMarketError(Exception): pass
 class AuthConfigurationError(PredictionMarketError): pass
+class ForbiddenError(PredictionMarketError): pass
 class RateLimitExceeded(PredictionMarketError): pass
 class InsufficientFunds(PredictionMarketError): pass
+class ExchangeServerError(PredictionMarketError): pass
 
 # ---------------------------------------------------------
 # Client Architecture
@@ -90,13 +92,28 @@ class KalshiClient:
             "KALSHI-ACCESS-TIMESTAMP": timestamp,
         }
 
+    @staticmethod
+    def _raise_for_status(res: httpx.Response, action: str) -> None:
+        """Map Kalshi HTTP failures to stable SDK exceptions."""
+        if res.status_code < 400:
+            return
+
+        detail = f"Kalshi {action} failed with HTTP {res.status_code}: {res.text}"
+        if res.status_code == 401:
+            raise AuthConfigurationError(detail)
+        if res.status_code == 403:
+            raise ForbiddenError(detail)
+        if res.status_code == 429:
+            raise RateLimitExceeded(detail)
+        if res.status_code >= 500:
+            raise ExchangeServerError(detail)
+        raise PredictionMarketError(detail)
+
     async def get_balance(self) -> float:
         """Fetch real-time portfolio balance."""
         headers = self._generate_rsa_headers("GET", "/portfolio/balance")
         res = await self.session.get("/portfolio/balance", headers=headers)
-        
-        if res.status_code == 429:
-            raise RateLimitExceeded("Kalshi 20req/sec capacity violated")
+        self._raise_for_status(res, "balance request")
             
         data = res.json()
         return data.get("balance", 0) / 100.0  # Convert cents to dollars
@@ -119,9 +136,7 @@ class KalshiClient:
         path = "/portfolio/orders"
         headers = self._generate_rsa_headers("POST", path)
         res = await self.session.post(path, headers=headers, json=payload)
-        
-        if res.status_code == 429:
-            raise RateLimitExceeded("Kalshi 10req/sec order limit violated")
+        self._raise_for_status(res, "order submission")
             
         # Zero-allocation deserialization
         try:

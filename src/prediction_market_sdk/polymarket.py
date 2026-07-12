@@ -13,7 +13,10 @@ class PolymarketOrderResponse(msgspec.Struct, gc=False):
     message: str | None = None
 
 class PredictionMarketError(Exception): pass
+class AuthConfigurationError(PredictionMarketError): pass
+class ForbiddenError(PredictionMarketError): pass
 class RateLimitExceeded(PredictionMarketError): pass
+class ExchangeServerError(PredictionMarketError): pass
 
 # ---------------------------------------------------------
 # Client Architecture
@@ -60,9 +63,25 @@ class PolymarketClient:
             "POLY-PASSPHRASE": self._passphrase
         }
 
+    @staticmethod
+    def _raise_for_status(res: httpx.Response, action: str) -> None:
+        """Map Polymarket HTTP failures to stable SDK exceptions."""
+        if res.status_code < 400:
+            return
+
+        detail = f"Polymarket {action} failed with HTTP {res.status_code}: {res.text}"
+        if res.status_code == 401:
+            raise AuthConfigurationError(detail)
+        if res.status_code == 403:
+            raise ForbiddenError(detail)
+        if res.status_code == 429:
+            raise RateLimitExceeded(detail)
+        if res.status_code >= 500:
+            raise ExchangeServerError(detail)
+        raise PredictionMarketError(detail)
+
     async def get_markets(self) -> dict:
         """Fetch active markets."""
         res = await self.session.get("/markets")
-        if res.status_code == 429:
-            raise RateLimitExceeded("Polymarket rate limit violated")
+        self._raise_for_status(res, "markets request")
         return res.json()
