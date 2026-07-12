@@ -14,7 +14,7 @@ async def analyze_market_with_9router(market_ticker: str):
     router = RouterClient()
 
     # 1. SDK provides async context management, cleaning up connections appropriately
-    async with KalshiClient(key_id="x", private_key_pem="x", env="paper") as kalshi:
+    async with KalshiClient(key_id="x", private_key_pem="x", env="paper"):
         # Example API retrieval (simulated here since auth is dummy)
         # orderbook = await kalshi.get_orderbook(market_ticker)
         book_summary = "{ 'yes': 55, 'no': 48 }"

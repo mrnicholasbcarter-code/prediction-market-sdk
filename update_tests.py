@@ -73,10 +73,10 @@ new_tests = """
     async def test_kalshi_timeout_retry(self, httpx_mock, kalshi_client):
         def raise_timeout(*args, **kwargs):
             raise httpx.TimeoutException("Read timeout")
-            
+
         for _ in range(3):
             httpx_mock.add_callback(raise_timeout, url="https://demo-api.kalshi.co/trade-api/v2/portfolio/balance")
-            
+
         with pytest.raises(KalshiExchangeServerError, match="timeout"):
             await kalshi_client.get_balance()
 """
@@ -93,10 +93,10 @@ poly_new_tests = """
     async def test_polymarket_timeout_retry(self, httpx_mock, polymarket_client):
         def raise_timeout(*args, **kwargs):
             raise httpx.TimeoutException("Read timeout")
-            
+
         for _ in range(3):
             httpx_mock.add_callback(raise_timeout, url="https://clob.sandbox.polymarket.com/markets")
-            
+
         with pytest.raises(PolymarketExchangeServerError, match="timeout"):
             await polymarket_client.get_markets()
 """

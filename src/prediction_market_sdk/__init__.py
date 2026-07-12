@@ -16,7 +16,6 @@ from .kalshi import (
     ForbiddenError,
     InsufficientFunds,
     KalshiClient,
-    OrderBookUpdate,
     OrderResponse,
     PredictionMarketError,
     RateLimitExceeded,
@@ -45,29 +44,29 @@ from .polymarket import (
 from .ws import MarketWebsocket
 
 __all__ = [
+    "AuthConfigurationError",
+    "ExchangeServerError",
+    "ForbiddenError",
+    "InsufficientFunds",
     # Kalshi
     "KalshiClient",
-    "OrderBookUpdate",
-    "OrderResponse",
-    "PredictionMarketError",
-    "AuthConfigurationError",
-    "ForbiddenError",
-    "RateLimitExceeded",
-    "InsufficientFunds",
-    "ExchangeServerError",
-    # Polymarket
-    "PolymarketClient",
-    "PolymarketOrderResponse",
-    "PolymarketError",
-    "PolymarketAuthError",
-    "PolymarketForbiddenError",
-    "PolymarketRateLimitError",
-    "PolymarketServerError",
     # WebSocket
     "MarketWebsocket",
     # OrderBook core
     "OrderBook",
     "OrderBookError",
+    "OrderBookUpdate",
+    "OrderResponse",
+    "PolymarketAuthError",
+    # Polymarket
+    "PolymarketClient",
+    "PolymarketError",
+    "PolymarketForbiddenError",
+    "PolymarketOrderResponse",
+    "PolymarketRateLimitError",
+    "PolymarketServerError",
+    "PredictionMarketError",
+    "RateLimitExceeded",
 ]
 
 __version__ = "0.1.0"
