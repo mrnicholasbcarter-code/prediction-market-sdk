@@ -31,6 +31,7 @@ from .polymarket import (
     ExchangeServerError as PolymarketServerError,
 )
 from .ws import MarketWebsocket
+from .orderbook import OrderBook, OrderBookUpdate as OrderBookUpdate, OrderBookError
 
 __all__ = [
     # Kalshi
@@ -53,6 +54,9 @@ __all__ = [
     "PolymarketServerError",
     # WebSocket
     "MarketWebsocket",
+    # OrderBook core
+    "OrderBook",
+    "OrderBookError",
 ]
 
 __version__ = "0.1.0"

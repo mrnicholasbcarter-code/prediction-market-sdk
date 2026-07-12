@@ -5,7 +5,7 @@ Provides an ultra-low latency async client for Polymarket's CLOB (Central Limit 
 Features:
 - L2 Authentication (EIP-712 style signatures)
 - Connection pooling via httpx.AsyncClient
-- Automatic retry with exponential backoff for 429/5xx
+- Automatic retry with exponential backoff + jitter for 429/5xx
 - Zero-allocation response parsing via msgspec Structs
 - Comprehensive exception taxonomy mapping HTTP codes to SDK exceptions
 
@@ -21,7 +21,7 @@ Usage:
 
 Authentication:
     Polymarket CLOB uses L2 API key authentication with headers:
-    - POLY-API-KEY: api_key
+    - POLY-API-KEY: ***
     - POLY-TIMESTAMP: unix timestamp
     - POLY-SIGNATURE: EIP-712 signature (simplified in this SDK)
     - POLY-PASSPHRASE: passphrase
@@ -30,8 +30,9 @@ Authentication:
     should implement full EIP-712 typed data signing per Polymarket spec.
 """
 
-import time
 import asyncio
+import random
+import time
 import httpx
 import msgspec
 from typing import Literal
@@ -214,26 +215,30 @@ class PolymarketClient:
 
     async def _request_with_retry(self, method: str, path: str, action: str, **kwargs) -> httpx.Response:
         """
-        Execute HTTP request with automatic retry on transient failures.
-        
+        Execute HTTP request with automatic retry on transient failures with jitter.
+
         Retries on: 429 (rate limit), 500, 502, 503, 504 (server errors)
-        Max retries: 3 with exponential backoff (0.1s, 0.2s, 0.4s)
-        
+        Max retries: 3 with exponential backoff + jitter
+
         Args:
             method: HTTP method
             path: Request path
             action: Action description for error messages
             **kwargs: Additional arguments passed to httpx request
-        
+
         Returns:
             httpx.Response on success
-        
+
         Raises:
             ExchangeServerError: After max retries exhausted
             Various SDK exceptions: For non-retryable HTTP errors
         """
         max_retries = 3
         for attempt in range(max_retries):
+            base_delay = 0.1 * (2 ** attempt)
+            # Add jitter: 0-100ms to each retry
+            delay = base_delay + (random.random() * 0.1)
+            
             headers = self._generate_l2_headers(method.upper(), path)
             req_kwargs = kwargs.copy()
             req_headers = req_kwargs.pop("headers", {})
@@ -242,16 +247,22 @@ class PolymarketClient:
             try:
                 res = await self.session.request(method, path, headers=headers, **req_kwargs)
                 if res.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
-                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    await asyncio.sleep(delay)
                     continue
                 self._raise_for_status(res, action)
                 return res
             except httpx.TimeoutException as e:
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(0.1 * (2 ** attempt))
+                    await asyncio.sleep(delay)
                     continue
                 raise ExchangeServerError(f"Polymarket {action} failed with timeout: {str(e)}") from e
         raise ExchangeServerError(f"Polymarket {action} failed after max retries")
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.session.aclose()
 
     async def get_markets(self) -> dict:
         """
