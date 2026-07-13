@@ -38,10 +38,11 @@ Architecture:
 import asyncio
 import json
 import logging
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
-import websockets
+from websockets.asyncio.client import ClientConnection, connect
+from websockets.exceptions import ConnectionClosed
 
 logger = logging.getLogger("pm_sdk.ws")
 
@@ -66,7 +67,7 @@ class MarketWebsocket:
         >>> ws.start_background()
     """
 
-    def __init__(self, wss_url: str, message_handler: Callable[[Any], Coroutine]):
+    def __init__(self, wss_url: str, message_handler: Callable[[Any], Awaitable[None]]):
         """
         Initialize WebSocket manager.
 
@@ -77,11 +78,11 @@ class MarketWebsocket:
         """
         self.wss_url = wss_url
         self.handler = message_handler
-        self._ws = None
-        self._run_task = None
-        self._reconnect_delay = 0.1
+        self._ws: ClientConnection | None = None
+        self._run_task: asyncio.Task[None] | None = None
+        self._reconnect_delay: float = 0.1
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Maintains the connection reactor loop.
 
@@ -93,13 +94,11 @@ class MarketWebsocket:
         while True:
             try:
                 logger.info(f"Connecting to {self.wss_url}...")
-                async with websockets.connect(
-                    self.wss_url, ping_interval=20, ping_timeout=20
-                ) as ws:
+                async with connect(self.wss_url, ping_interval=20, ping_timeout=20) as ws:
                     self._ws = ws
                     self._reconnect_delay = 0.1  # Reset backoff on success
                     await self._reactor_loop()
-            except websockets.ConnectionClosed:
+            except ConnectionClosed:
                 logger.warning("WebSocket closed unexpectedly. Reconnecting...")
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
@@ -149,7 +148,7 @@ class MarketWebsocket:
         await self._ws.send(json.dumps(msg))
         logger.info(f"Subscribed to {channels} for markets {market_ids}")
 
-    async def _reactor_loop(self):
+    async def _reactor_loop(self) -> None:
         """
         The hot path - reads bytes directly off socket and parses immediately.
 
@@ -170,7 +169,7 @@ class MarketWebsocket:
             except Exception as e:
                 logger.error(f"Error handling message: {e}")
 
-    def start_background(self):
+    def start_background(self) -> None:
         """
         Launch the socket in a background non-blocking task.
 

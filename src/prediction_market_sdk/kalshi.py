@@ -29,12 +29,13 @@ import asyncio
 import base64
 import random
 from datetime import datetime, timezone
-from typing import Literal
+from types import TracebackType
+from typing import Any, Literal
 
 import httpx
 import msgspec
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 # ---------------------------------------------------------
@@ -196,9 +197,12 @@ class KalshiClient:
 
         # Security Boundary: RSA Key initialized into memory once
         try:
-            self.rsa_key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
-        except Exception as e:
-            raise AuthConfigurationError("Failed to parse RSA Private Key PEM") from e
+            loaded_key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
+        except Exception as exc:
+            raise AuthConfigurationError("Failed to parse RSA Private Key PEM") from exc
+        if not isinstance(loaded_key, rsa.RSAPrivateKey):
+            raise AuthConfigurationError("Failed to parse RSA Private Key PEM")
+        self.rsa_key: rsa.RSAPrivateKey = loaded_key
 
         # DNS mapping based on 3-environment state
         if env == "live":
@@ -208,7 +212,7 @@ class KalshiClient:
 
         self.session = httpx.AsyncClient(base_url=self.base_url)
 
-    def _generate_rsa_headers(self, method: str, path: str) -> dict:
+    def _generate_rsa_headers(self, method: str, path: str) -> dict[str, str]:
         """
         Calculate instantaneous RSA-PSS SHA-256 signature required by exchange.
 
@@ -230,11 +234,12 @@ class KalshiClient:
             hashes.SHA256(),
         )
 
-        return {
+        headers: dict[str, str] = {
             "KALSHI-ACCESS-KEY": self.key_id,
             "KALSHI-ACCESS-SIGNATURE": base64.b64encode(signature).decode("utf-8"),
             "KALSHI-ACCESS-TIMESTAMP": timestamp,
         }
+        return headers
 
     @staticmethod
     def _raise_for_status(res: httpx.Response, action: str) -> None:
@@ -267,7 +272,7 @@ class KalshiClient:
         raise PredictionMarketError(detail)
 
     async def _request_with_retry(
-        self, method: str, path: str, action: str, **kwargs
+        self, method: str, path: str, action: str, **kwargs: Any
     ) -> httpx.Response:
         """
         Execute HTTP request with automatic retry on transient failures with jitter.
@@ -296,7 +301,7 @@ class KalshiClient:
 
             headers = self._generate_rsa_headers(method.upper(), path)
             req_kwargs = kwargs.copy()
-            req_headers = req_kwargs.pop("headers", {})
+            req_headers: dict[str, str] = req_kwargs.pop("headers", {})
             headers.update(req_headers)
 
             try:
@@ -313,10 +318,15 @@ class KalshiClient:
                 raise ExchangeServerError(f"Kalshi {action} failed with timeout: {e!s}") from e
         raise ExchangeServerError(f"Kalshi {action} failed after max retries")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "KalshiClient":
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         await self.session.aclose()
 
     async def get_balance(self) -> float:
@@ -337,8 +347,8 @@ class KalshiClient:
         """
         res = await self._request_with_retry("GET", "/portfolio/balance", action="balance request")
 
-        data = res.json()
-        return data.get("balance", 0) / 100.0  # Convert cents to dollars
+        data: dict[str, Any] = res.json()
+        return float(data.get("balance", 0)) / 100.0  # Convert cents to dollars
 
     async def submit_order(
         self, ticker: str, action: str, side: str, count: int, price: int
@@ -384,6 +394,7 @@ class KalshiClient:
 
         # Zero-allocation deserialization
         try:
-            return msgspec.json.decode(res.content, type=OrderResponse)
+            order_response: OrderResponse = msgspec.json.decode(res.content, type=OrderResponse)
+            return order_response
         except Exception as e:
             raise PredictionMarketError(f"Unexpected exchange payload: {res.text}") from e

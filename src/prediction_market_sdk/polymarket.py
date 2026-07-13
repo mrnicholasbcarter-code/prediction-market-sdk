@@ -33,7 +33,8 @@ Authentication:
 import asyncio
 import random
 import time
-from typing import Literal
+from types import TracebackType
+from typing import Any, Literal
 
 import httpx
 import msgspec
@@ -166,7 +167,7 @@ class PolymarketClient:
 
         self.session = httpx.AsyncClient(base_url=self.base_url)
 
-    def _generate_l2_headers(self, method: str, path: str) -> dict:
+    def _generate_l2_headers(self, method: str, path: str) -> dict[str, str]:
         """
         Generate L2 authentication headers (EIP-712 style).
 
@@ -185,12 +186,13 @@ class PolymarketClient:
         # Stripped of proprietary logic/keys for open-source safety.
         mock_signature = "0x..."
 
-        return {
+        headers: dict[str, str] = {
             "POLY-API-KEY": self.api_key,
             "POLY-TIMESTAMP": timestamp,
             "POLY-SIGNATURE": mock_signature,
             "POLY-PASSPHRASE": self._passphrase,
         }
+        return headers
 
     @staticmethod
     def _raise_for_status(res: httpx.Response, action: str) -> None:
@@ -223,7 +225,7 @@ class PolymarketClient:
         raise PredictionMarketError(detail)
 
     async def _request_with_retry(
-        self, method: str, path: str, action: str, **kwargs
+        self, method: str, path: str, action: str, **kwargs: Any
     ) -> httpx.Response:
         """
         Execute HTTP request with automatic retry on transient failures with jitter.
@@ -252,7 +254,7 @@ class PolymarketClient:
 
             headers = self._generate_l2_headers(method.upper(), path)
             req_kwargs = kwargs.copy()
-            req_headers = req_kwargs.pop("headers", {})
+            req_headers: dict[str, str] = req_kwargs.pop("headers", {})
             headers.update(req_headers)
 
             try:
@@ -269,13 +271,18 @@ class PolymarketClient:
                 raise ExchangeServerError(f"Polymarket {action} failed with timeout: {e!s}") from e
         raise ExchangeServerError(f"Polymarket {action} failed after max retries")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "PolymarketClient":
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         await self.session.aclose()
 
-    async def get_markets(self) -> dict:
+    async def get_markets(self) -> dict[str, Any]:
         """
         Fetch active markets from Polymarket CLOB.
 
@@ -292,4 +299,5 @@ class PolymarketClient:
             PredictionMarketError: Other HTTP failures
         """
         res = await self._request_with_retry("GET", "/markets", action="markets request")
-        return res.json()
+        markets: dict[str, Any] = res.json()
+        return markets

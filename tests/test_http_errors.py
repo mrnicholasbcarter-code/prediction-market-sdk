@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from typing import Any
+
 import httpx
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from pytest_httpx import HTTPXMock
 
 from prediction_market_sdk.kalshi import (
     AuthConfigurationError as KalshiAuthConfigurationError,
@@ -55,14 +59,14 @@ def generate_private_key_pem() -> str:
     ).decode("utf-8")
 
 
-KALSHI_ERROR_CASES = [
+KALSHI_ERROR_CASES: list[tuple[int, type[KalshiPredictionMarketError]]] = [
     (401, KalshiAuthConfigurationError),
     (403, KalshiForbiddenError),
     (429, KalshiRateLimitExceeded),
     (500, KalshiExchangeServerError),
 ]
 
-POLYMARKET_ERROR_CASES = [
+POLYMARKET_ERROR_CASES: list[tuple[int, type[PolymarketPredictionMarketError]]] = [
     (401, PolymarketAuthConfigurationError),
     (403, PolymarketForbiddenError),
     (429, PolymarketRateLimitExceeded),
@@ -71,7 +75,7 @@ POLYMARKET_ERROR_CASES = [
 
 
 @pytest_asyncio.fixture
-async def kalshi_client():
+async def kalshi_client() -> AsyncIterator[KalshiClient]:
     client = KalshiClient(
         key_id="test-key", private_key_pem=generate_private_key_pem(), env="paper"
     )
@@ -82,7 +86,7 @@ async def kalshi_client():
 
 
 @pytest_asyncio.fixture
-async def polymarket_client():
+async def polymarket_client() -> AsyncIterator[PolymarketClient]:
     client = PolymarketClient(api_key="key", api_secret="secret", passphrase="pass", env="paper")
     try:
         yield client
@@ -94,8 +98,12 @@ class TestKalshiHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), KALSHI_ERROR_CASES)
     async def test_get_balance_maps_http_errors(
-        self, httpx_mock, kalshi_client, status_code, expected_error
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        kalshi_client: KalshiClient,
+        status_code: int,
+        expected_error: type[KalshiPredictionMarketError],
+    ) -> None:
         num_requests = 3 if status_code in (429, 500) else 1
         for _ in range(num_requests):
             httpx_mock.add_response(
@@ -113,8 +121,12 @@ class TestKalshiHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), KALSHI_ERROR_CASES)
     async def test_submit_order_maps_http_errors(
-        self, httpx_mock, kalshi_client, status_code, expected_error
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        kalshi_client: KalshiClient,
+        status_code: int,
+        expected_error: type[KalshiPredictionMarketError],
+    ) -> None:
         num_requests = 3 if status_code in (429, 500) else 1
         for _ in range(num_requests):
             httpx_mock.add_response(
@@ -136,8 +148,10 @@ class TestKalshiHttpErrors:
         assert isinstance(exc_info.value, KalshiPredictionMarketError)
 
     @pytest.mark.asyncio
-    async def test_kalshi_timeout_retry(self, httpx_mock, kalshi_client):
-        def raise_timeout(*args, **kwargs):
+    async def test_kalshi_timeout_retry(
+        self, httpx_mock: HTTPXMock, kalshi_client: KalshiClient
+    ) -> None:
+        def raise_timeout(*args: Any, **kwargs: Any) -> None:
             raise httpx.TimeoutException("Read timeout")
 
         for _ in range(3):
@@ -153,8 +167,12 @@ class TestPolymarketHttpErrors:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("status_code", "expected_error"), POLYMARKET_ERROR_CASES)
     async def test_get_markets_maps_http_errors(
-        self, httpx_mock, polymarket_client, status_code, expected_error
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        polymarket_client: PolymarketClient,
+        status_code: int,
+        expected_error: type[PolymarketPredictionMarketError],
+    ) -> None:
         num_requests = 3 if status_code in (429, 500) else 1
         for _ in range(num_requests):
             httpx_mock.add_response(
@@ -170,8 +188,10 @@ class TestPolymarketHttpErrors:
         assert isinstance(exc_info.value, PolymarketPredictionMarketError)
 
     @pytest.mark.asyncio
-    async def test_polymarket_timeout_retry(self, httpx_mock, polymarket_client):
-        def raise_timeout(*args, **kwargs):
+    async def test_polymarket_timeout_retry(
+        self, httpx_mock: HTTPXMock, polymarket_client: PolymarketClient
+    ) -> None:
+        def raise_timeout(*args: Any, **kwargs: Any) -> None:
             raise httpx.TimeoutException("Read timeout")
 
         for _ in range(3):

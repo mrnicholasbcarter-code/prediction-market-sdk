@@ -4,7 +4,7 @@ from prediction_market_sdk.polymarket import PolymarketClient
 
 
 @pytest.mark.asyncio
-async def test_live_polymarket_fetch():
+async def test_live_polymarket_fetch() -> None:
     """
     REAL INTEGRATION TEST.
     No mocks. Connects to the actual Polymarket API and validates
