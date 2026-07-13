@@ -1,64 +1,50 @@
 <div align="center">
   <h1>prediction-market-sdk</h1>
-  <p><strong>Ultra-Low Latency Python SDK for Kalshi, Polymarket, Metaculus, and PredictIt</strong></p>
-  
-  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)](#)
-  [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square)](#)
-  [![Language](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue?style=flat-square)](#)
-  [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#)
-  [![Parser](https://img.shields.io/badge/parser-msgspec--zero--alloc-orange?style=flat-square)](#)
+  <p><strong>Typed async market-data and trading-client foundation for Kalshi and Polymarket workflows</strong></p>
+  <p>
+    <a href="https://github.com/mrnicholasbcarter-code/prediction-market-sdk/actions"><img src="https://img.shields.io/badge/CI-tested-blue" alt="CI tested" /></a>
+    <a href="https://github.com/mrnicholasbcarter-code/prediction-market-sdk/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
+  </p>
 </div>
 
 ---
 
-`prediction-market-sdk` is a high-performance, asynchronous Python SDK engineered specifically for algorithmic trading, quantitative finance, and high-frequency market-making across major prediction exchanges: **Kalshi**, **Polymarket**, **Metaculus**, and **PredictIt**.
+`prediction-market-sdk` is an async Python foundation for typed market data, authenticated Kalshi REST workflows, Polymarket CLOB REST scaffolding, reusable L2 order-book state, and resilient WebSocket lifecycle management.
 
-The core engine is built to bypass standard Python runtime overheads, featuring **zero-allocation parsing** via `msgspec.Struct(gc=False)` to prevent Garbage Collection (GC) pauses during fast-path reactor updates, automatic connection pooling via `httpx.AsyncClient`, and high-throughput WebSocket reactor loops with sub-millisecond dispatch times.
+The current public scope is intentionally narrow. Kalshi REST signing and order workflows, the reusable `OrderBook` snapshot/delta ladder, and the Kalshi-compatible subscription manager are implemented and tested. Polymarket L2 signing remains a documented placeholder, and exchange-specific WebSocket decoding, subscription recovery, and live-order safety require additional work before production claims are appropriate.
 
----
+This repository does **not** currently implement Metaculus or PredictIt clients. Model routing is not part of the SDK core. Use `llm-gate` or another explicitly configured gateway for OmniRoute-backed model selection.
 
-## ⚡ Key Highlights & Core Features
+## ⚠️ Current limitations
 
-*   **Zero-Allocation Parsing:** Utilizes custom `msgspec` structs with GC tracking disabled (`gc=False`) to parse incoming L2 WebSocket updates and JSON payloads directly into typed python models without memory allocation overhead.
-*   **Resilient Async WebSocket Reactor:** Reconnection architecture featuring exponential backoff with randomized jitter starting at `0.1s` and capped at `5.0s` to guarantee maximum uptime during volatile trading periods.
-*   **High-Performance L2 Order Book Ladder:** In-memory order book engine tracking bid/ask tables with $O(\log N)$ top-of-book, spread, and mid-price computations. In-place mutations prevent structural copy allocations.
-*   **Robust Cryptographic Signing:** Fast PSS-RSA signatures (`cryptography`-backed) for Kalshi's API headers and simplified EIP-712 styled authentication signatures for Polymarket's CLOB API.
-*   **Predictive Inference & Sentiment Multiplexing:** Built-in integration with the decoupled `9Router` / `Omniroute` ecosystem (`localhost:20128`) to dispatch sentiment mapping or complex bet logic models with fallback options, eliminating provider lock-in and quota limits.
-*   **Unified Exception Mapping:** Decodes complex HTTP statuses (401, 403, 429, 5xx) into a stable, well-defined hierarchy (`AuthConfigurationError`, `ForbiddenError`, `RateLimitExceeded`, `ExchangeServerError`).
+- The WebSocket reactor currently delivers raw frames to the callback. It does not yet decode every exchange schema or reconstruct books automatically.
+- `OrderBook` provides deterministic snapshot plus delta application, sequence watermarking, and top-of-book queries, but callers own exchange-specific message decoding.
+- Polymarket authentication is intentionally simplified and must not be presented as full EIP-712 live-order signing.
+- Benchmarks, reconnect fault-injection coverage, and a clean installed example matrix are still release work.
 
----
+## ⚡ Implemented capabilities
 
-## 🏗️ Architecture Flow
-
-The library's design focuses on keeping the processing pipeline clear of intermediate objects. Raw TCP bytes stream straight into the native message handler, which parses them via `msgspec` and directly updates the in-memory order book ladder or notifies the user callback.
+- Typed `msgspec.Struct(gc=False)` models for hot-path order and book updates where implemented.
+- In-memory `OrderBook` snapshot/delta ladder with best bid, best ask, spread, midpoint, depth, and out-of-order watermark protection.
+- Async Kalshi REST client with RSA-PSS request signing, HTTP error taxonomy, connection pooling, and bounded retries.
+- Async Polymarket CLOB client with explicit sandbox/live endpoints and a clearly marked simplified authentication boundary.
+- WebSocket lifecycle manager with subscription API, heartbeat settings, exponential reconnect delay, and callback isolation.
+- Reproducible ## 🏗️ Architecture Flow
 
 ```mermaid
 graph TD
-    A[Exchange TCP Stream] -->|Raw JSON Bytes| B[MarketWebsocket / Async Client]
-    B -->|Fast Parsing via msgspec Structs| C[Zero-Alloc Typed Structs]
-    C -->|Direct Mutation / Callback| D[L2 Order Book Ladder]
-    C -->|Structured Payloads| E[User Trading Engine / Execution Logic]
-    F[RouterClient localhost:20128] -.->|Sentiment & Betting Logic| E
+    A[Exchange REST or WebSocket frame] -->|Client adapter| B[Typed response or raw frame]
+    B --> C[OrderBook snapshot/delta state]
+    C --> D[User strategy or execution boundary]
+    E[Optional llm-gate / OmniRoute service] -.-> D
 ```
 
-### Hot Path Message Reactor Pipeline
+The SDK owns typed exchange-client primitives and local book state. It does not silently route prompts or embed a model provider. If an application needs model selection, it should point its model client at the separately configured `llm-gate` gateway.
 
-```mermaid
-sequenceDiagram
-    participant Exchange as Exchange WebSocket
-    participant Reactor as _reactor_loop (WS Client)
-    participant Model as msgspec Struct (gc=False)
-    participant Engine as User Trading Callback
+### Protocol boundary
 
-    Exchange->>Reactor: Raw JSON Frame (Bytes)
-    Note over Reactor: Reads bytes directly from socket
-    Reactor->>Model: msgspec.json.decode()
-    Note over Model: No Python GC tracking overhead
-    Model->>Engine: OrderBookUpdate / OrderResponse
-    Note over Engine: O(log N) depth and in-place updates
-```
-
----
+`MarketWebsocket` exposes a Kalshi-compatible subscription shape, but the callback currently receives the exchange frame as delivered by the transport. Applications must decode provider-specific frames and apply validated `OrderBookUpdate` values to `OrderBook`. Automatic multi-exchange decoding and gap recovery are tracked release work.
 
 ## 📊 Competitor Matrix
 
@@ -67,10 +53,10 @@ sequenceDiagram
 | **Parsing Engine** | `msgspec` (Zero-allocation, compiled) | `pydantic` / Standard `json` (Slow, high allocations) | Standard `json` & `dict` mappings |
 | **Garbage Collector Churn** | **Zero** (`gc=False` on critical structures) | High (causes GC latency spikes) | High (causes GC latency spikes) |
 | **WebSocket Resiliency** | Auto-reconnect loop with jitter (capped at 5s) | Manual reconnect handling required | Basic reconnect, no default jitter |
-| **Multi-Exchange Unification** | **Yes** (Kalshi, Polymarket, Metaculus, PredictIt) | No (Polymarket Only) | No (Kalshi Only) |
+| **Exchange scope** | Kalshi + Polymarket foundation; other exchanges not implemented | No (Polymarket Only) | No (Kalshi Only) |
 | **L2 Depth Ladder Engine** | Built-in in-place mutations ($O(\log N)$) | External implementation required | External implementation required |
 | **HTTP Client Session** | Shared `httpx.AsyncClient` pool | Custom `requests` / basic `aiohttp` | Synchronous `urllib3` / basic wrapper |
-| **LLM Inference Routing** | Integrated `9Router` fallback client | None | None |
+| **LLM inference routing** | Separate `llm-gate` integration; not in SDK core | None | None |
 
 ---
 
@@ -86,7 +72,7 @@ For setting up a development workspace, running tests, or auditing the codebase:
 
 ```bash
 # Clone the repository
-git clone https://github.com/nick/prediction-market-sdk.git
+git clone https://github.com/mrnicholasbcarter-code/prediction-market-sdk.git
 cd prediction-market-sdk
 
 # Install dependencies in editable mode with development flags
