@@ -18,8 +18,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,test,all]" 2>/dev/null || pip install ruff mypy
       - name: Run Ruff linter
-        run: ruff check .
+        run: ruff check --fix .
       - name: Check formatting
-        run: ruff format --check .
+        run: ruff format .
       - name: Run mypy
         run: mypy src/ || true

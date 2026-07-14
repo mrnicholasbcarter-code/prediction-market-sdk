@@ -60,3 +60,15 @@ disallow_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github*",
+  "/.pytest_cache*",
+  "/.coverage",
+  "/.ruff_cache*",
+  "/tests*",
+  "/examples*",
+  "*.sh",
+  "update*.py"
+]
