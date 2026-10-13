@@ -62,10 +62,10 @@ The SDK owns typed exchange-client primitives and local book state. It does not 
 
 ## 📦 Installation
 
-To install `prediction-market-sdk` via `pip`:
+`prediction-market-sdk` isn't published on PyPI yet. Install it straight from GitHub:
 
 ```bash
-pip install prediction-market-sdk
+pip install "git+https://github.com/mrnicholasbcarter-code/prediction-market-sdk.git"
 ```
 
 For setting up a development workspace, running tests, or auditing the codebase:
@@ -182,9 +182,8 @@ from prediction_market_sdk.kalshi import (
     PredictionMarketError
 )
 
-PRIVATE_KEY_PEM = """-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA0Y+3... (Your RSA PEM Key)
------END RSA PRIVATE KEY-----"""
+# Load your Kalshi RSA key from a file or secret store. Never commit a real key.
+PRIVATE_KEY_PEM = "<YOUR_PRIVATE_KEY_PEM>"
 
 async def execute_trade():
     # Instantiates client and loads PEM key immediately.
@@ -409,4 +408,4 @@ Contributions are highly welcome. Please follow these guidelines:
 2. **Test Coverage:** All new features must include unit or integration tests mapping to the internal exchange client taxonomy.
 3. **Docstring Integrity:** Maintain standard docstring patterns, documenting constraints on all types and memory allocations.
 
-For licensing details, see [LICENSE](file:///home/nick/prediction-market-sdk/LICENSE).
+For licensing details, see [LICENSE](LICENSE).
